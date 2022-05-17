@@ -1,0 +1,123 @@
+---
+title: "Chapter 2: Small worlds and large worlds"
+format: html
+fig-cap-location: margin
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+## Building a model 
+
+We want to find the proportion of the earth surface covered by water. 
+We call this proportion $p$. 
+To find $p$, we do the following: 
+we draw randomly a point on a globe
+and record if it is water (W) or land (L).
+Let's say that after nine samples we have the following sequence:
+$W-L-W-W-W-L-W-L-W$.
+
+## Components of the model 
+
+The **likelihood** is the distribution function of an observed variable,
+in our example the observed sequence of W and L.
+
+Formally, in our example the likelihood is given by the binomial distribution:
+
+$$ P(W,L | p) = \binom{W + L}{W} p^W (1-p)^L $$
+We can plot this distribution depending on $p$ for our observed sequence.
+
+```{r}
+#| fig-cap: Likelihood distribution depending on water probability (p).
+
+likelihood <- function(p, W, n_obs){
+    dbinom(W, n_obs, prob=p)
+}
+
+p = seq(0, 1, length.out = 21)
+L = likelihood(p, 6, 9)
+plot(p, L, xlab = "p", ylab = "Likelihood", type="b")
+```
+
+:::{.callout-note}
+The likelihood peaks at $p=\frac{6}{9}$ the proportion of observed W in our sequence.
+:::
+
+Unobserved variables are called **parameters**. 
+For instance, here $p$ is a parameter of our model.
+
+For each parameter of the Bayesian model, 
+we must provide a distribution of its prior plausibility, its **prior**.
+
+Model summary:
+
+- likelihood: $W \sim \text{Binomial}(W+L,p)$
+- prior: $p \sim \text{Uniform}(0,1)$
+
+## Making the model go 
+
+Once the Bayesian model is set up, 
+we can update the prior data with the observed data 
+thanks to the **posterior**. 
+The posterior is the probability distribution of parameter values 
+conditional on the data and the model.
+In our case, it would correspond to $P(p | W,L)$.
+
+Bayes' theorem: 
+
+$$ P(p | W,L) = \frac{P(W,L|p) P(p)}{P(W,L)} $$
+$P(W,L)$ is called the **evidence** 
+and corresponds to the likelihood average over the prior.
+
+$$P(W,L) = E(P(W,L|p)) = \int P(W,L|p)P(p)dp$$
+Where $E$ is the *expectation* operator. 
+Such averages are often called *marginals* in statistics.
+Thus this probability can also be called the *marginal likelihood*.
+
+:::{.callout-important}
+Posterior $\propto$ Prior $\times$ Likelihood
+:::
+
+In practice, it is often impossible to compute the posterior analytically.
+Thus, in this book explore three numerical methods to do so:
+
+1. Grid approximation
+2. Quadratic approximation
+3. Markov chain Monte Carlo (MCMC)
+
+**Grid approximation** consists in a discretization 
+of continuous model parameters.
+Grid approximation is used here as pedagogical tool, 
+but it isn't suited to practical cases.
+
+For our example, the grid approximation can be performed as follow:
+
+```{r}
+# 0 - Set up.
+n_points <- 20
+
+# 1 - Define the grid.
+p_grid <- seq(0, 1, length.out=n_points)
+
+# 2 - Define the prior.
+prior <- rep(1, n_points)
+
+# 3 - Compute likelihood for each grid cell.
+lik <- dbinom(6, 9, prob=p_grid)
+
+# 4 - Compute product of prior and posterior.
+unstd_posterior <- prior * lik
+
+# 5 - Standardize the posterior (so it sums to 1).
+posterior <- unstd_posterior / sum(unstd_posterior)
+```
+
+```{r}
+#| fig-cap: Posterior probability depending on the proportion of water (p).
+
+plot(p_grid, posterior, type="b",
+     xlab="Probability of water (p)",
+     ylab="Posterior")
+```
+
