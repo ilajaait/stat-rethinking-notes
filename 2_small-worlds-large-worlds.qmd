@@ -8,6 +8,12 @@ editor_options:
   chunk_output_type: console
 ---
 
+```{r}
+#| output: false
+library(rethinking)
+```
+
+
 ## Building a model 
 
 We want to find the proportion of the earth surface covered by water. 
@@ -121,3 +127,157 @@ plot(p_grid, posterior, type="b",
      ylab="Posterior")
 ```
 
+The issue with the grid approximation is 
+that the number of cells grow exponentially with the number of parameters.
+Thus this approximation becomes quickly very expensive and not usable in practice.
+Another, way cheaper approximation, is the **quadratic approximation**. 
+The idea is to approximate the posterior distribution by a gaussian. 
+It is called quadratic approximation because the log of a gaussian is a parabola.
+
+To compute the quadratic approximation of the globe tossing data:
+
+```{r}
+globe.qa <- quap(
+    alist(
+        W ~ dbinom(W+L,p), # binomial likelihood
+        p ~ dunif(0,1) # uniform prior 
+    ),
+    data=list(W=6, L=3)
+)
+
+# Display summary of quadratic approximation.
+precis(globe.qa)
+```
+
+:::{.callout-note}
+The mean of the quadratic approximation also correspond to the peak of the distribution,
+which is $\frac{W}{W+L}=\frac{6}{9}$.
+:::
+
+```{r}
+# Analytical calculation.
+W <- 6 
+L <- 3
+curve(dbeta(x,W+1,L+1), from=0, to=1, xlab="p", ylab="Posterior")
+
+# Quadratic approximation.
+curve(dnorm(x, 0.67, 0.16), lty=2, add=TRUE)
+```
+
+
+However, for the most of models quadratic approximation fails too.
+It is where **Markov chain Monte Carlo** comes into play.
+The idea of MCMC is not to approximate directly the posterior, 
+but to draw randomly samples from the posterior and 
+reconstruct the posterior distribution from the frequency of the 
+different sampled values.
+
+```{r}
+n_samples <- 1000
+p <- rep(NA, n_samples)
+p[1] <- 0.5
+W <- 6
+L <- 3
+for (i in 2:n_samples){
+    p_new <- rnorm(1, p[i-1], 0.1)
+    if (p_new < 0){p_new <- abs(p_new)}
+    if (p_new > 1){p_new <- 2 - p_new}
+    q0 <- dbinom(W, W+L, p[i-1])
+    q1 <- dbinom(W, W+L, p_new)
+    p[i] <- ifelse(runif(1) < q1/q0, p_new, p[i-1])
+}
+
+dens(p, xlim=c(0,1))
+curve(dbeta(x, W+1, L+1), lty=2, add=TRUE)
+```
+
+## Practice 
+
+**M1** Compute and plot the grid approximate posterior distribution
+for the following sets of observations
+and assuming a uniform prior:
+
+1. $W-W-W$
+2. $W-W-W-L$
+3. $L-W-W-L-W-W-W$
+
+```{r}
+# 0 - Set up.
+n_points <- 20
+
+# 1 - Define the grid.
+p_grid <- seq(0, 1, length.out=n_points)
+
+# 2 - Define the prior.
+prior <- rep(1, n_points)
+
+# 3 - Compute likelihood for each grid cell.
+lik1 <- dbinom(3, 3, prob=p_grid)
+lik2 <- dbinom(3, 4, prob=p_grid)
+lik3 <- dbinom(5, 7, prob=p_grid)
+
+# 4 - Compute product of prior and posterior.
+unstd_posterior1 <- prior * lik1
+unstd_posterior2 <- prior * lik2
+unstd_posterior3 <- prior * lik3
+
+# 5 - Standardize the posterior (so it sums to 1).
+posterior1 <- unstd_posterior1 / sum(unstd_posterior1)
+posterior2 <- unstd_posterior2 / sum(unstd_posterior2)
+posterior3 <- unstd_posterior3 / sum(unstd_posterior3)
+```
+
+```{r}
+plot(p_grid, posterior1, type="b",
+     xlab="Probability of water (p)",
+     ylab="Posterior")
+lines(p_grid, posterior2, type="b",
+     col="orange")
+lines(p_grid, posterior3, type="b",
+     col="blue")
+
+legend("topleft", c("WWW", "WWWL", "LWWLWWW"), lty=c(1,1),
+       col=c("black", "orange","blue"))
+```
+
+**M2** Now assume prior which is null for $p \leq 0.5$ and
+is positive otherwise.
+
+```{r}
+# 0 - Set up.
+n_points <- 20
+
+# 1 - Define the grid.
+p_grid <- seq(0, 1, length.out=n_points)
+
+# 2 - Define the prior.
+prior <- ifelse(p_grid > 0.5, 1, 0)
+
+# 3 - Compute likelihood for each grid cell.
+lik1 <- dbinom(3, 3, prob=p_grid)
+lik2 <- dbinom(3, 4, prob=p_grid)
+lik3 <- dbinom(5, 7, prob=p_grid)
+
+# 4 - Compute product of prior and posterior.
+unstd_posterior1 <- prior * lik1
+unstd_posterior2 <- prior * lik2
+unstd_posterior3 <- prior * lik3
+
+# 5 - Standardize the posterior (so it sums to 1).
+posterior1 <- unstd_posterior1 / sum(unstd_posterior1)
+posterior2 <- unstd_posterior2 / sum(unstd_posterior2)
+posterior3 <- unstd_posterior3 / sum(unstd_posterior3)
+```
+
+```{r}
+plot(p_grid, posterior1, type="b",
+     xlab="Probability of water (p)",
+     ylab="Posterior")
+lines(p_grid, posterior2, type="b",
+     col="orange")
+lines(p_grid, posterior3, type="b",
+     col="blue")
+
+legend("topleft", c("WWW", "WWWL", "LWWLWWW"), lty=c(1,1),
+       col=c("black", "orange","blue"))
+```
