@@ -1,5 +1,5 @@
 ---
-title: "Chapter 2: Small worlds and large worlds"
+title: "Chapter 3: Sampling the imaginary"
 format: html
 fig-cap-location: margin
 reference-location: margin
@@ -39,3 +39,297 @@ dens(posterior_samples, xlab="p")
 ```
 
 The estimate density is very similar to the posterior distribution.
+
+## Sampling to summarize 
+
+Common questions to summarize and interpret posterior distribution are:
+
+- How much posterior probability lies below some parameter value?
+- How much posterior probability lies between two parameters values? 
+- Which range of parameter values contains 90% of the posterior probability?
+- Which parameter value has highest posterior probability? 
+
+### Intervals of defined boundaries 
+
+The probability that the proportion of water is less than 0.5
+can be computed as follow:
+
+```{r}
+sum(posterior[p_grid < 0.5])
+```
+
+But grid approximation is not practical in general,
+so let's how to do this computation using samples of posterior distribution.
+
+```{r}
+sum(posterior_samples < 0.5) / 10000
+```
+
+### Intervals of defined mass 
+
+Interval of defined mass are also known as **confidence interval**.
+The interval indicates a range of parameters value compatible with 
+the model and the data.
+These posterior intervals contain a specified amount of posterior probability, 
+a probability mass.
+For example, let's find the boundaries of the lower 80% posterior probability.
+
+```{r}
+quantile(posterior_samples, 0.8)
+```
+
+Similarly, the middle 80% interval lies between the 10th and the 90th quantiles.
+
+```{r}
+quantile(posterior_samples, c(0.1, 0.9))
+```
+
+Posterior of this sort, which assign equal probability to each tail, 
+are very common in the scientific literature and
+are called **percentile intervals**.
+They communicate well the shape of a distribution (if it is not too asymmetrical), 
+but are not perfect to support inference about which parameters are consistent 
+with the data.
+For that latter it is better to consider the **highest posterior density interval**. But in most cases, both intervals are very similar.
+They only look different when the distribution is highly skewed.
+
+### Point estimates
+
+Given the entire posterior distribution what value should you report?
+Choosing a point estimate is rarely necessary and often harmful.
+But if you want must produce a single point estimate, you'll have 
+to ask more questions. 
+Let's consider the globe tossing experiment, 
+with 3 water out of 3 tosses.
+First it is common for scientist to report the parameter with 
+the highest posterior probability or the 
+**maximum a posterior (MAP)**. 
+
+```{r}
+# Compute posterior with grid approximation.
+p_grid <- seq(0, 1, length.out=1000)
+prior <- rep(1, 1000)
+likelihood <- dbinom(3, size=3, prob=p_grid)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+samples <- sample(p_grid, size=1e5, replace=TRUE, prob=posterior)
+
+# MAP.
+p_grid[which.max(posterior)]
+```
+
+But we could also to choose to report the mean or the median.
+
+One principle to select a point estimate is to choose a loss function.
+If the loss function is defined as the Mean Absolute Error (norm $l_1$), 
+the median is the estimate that minimizes it.
+If we choose the Mean Squared Error (norm $l_2$),
+the mean is the that estimate minimizes it.
+Hopefully, for normal-like distributions,
+the mean and the median converges to the same point.
+
+```{r}
+mae_loss <- sapply(p_grid, function(d) sum(posterior*abs(d-p_grid)))
+p_grid[which.min(mae_loss)]
+```
+
+```{r}
+median(samples)
+```
+
+```{r}
+mse_loss <- sapply(p_grid, function(d) sum(posterior*(d-p_grid)**2))
+p_grid[which.min(mse_loss)]
+```
+
+```{r}
+mean(samples)
+```
+
+It is better to communicate as much as as you can about the posterior distribution,
+as well as the model and the data itself.
+
+## Sampling to simulate predictions
+
+We will look at how producing simulated observations and how to perform simple model checks.
+
+Given only the parameters the likelihood defines a distribution of possible
+observations that we can sample from, to simulate observations.
+In this sense, bayesian models are always *generative*, 
+i.e. capable of simulating observations (called 'dummy data' hereafter).
+For the globe tossing experiment, the dummy data arises from 
+a binomial likelihood:
+
+$$ P(W | N,p) = \binom{N}{W} p^W (1-p)^{N-W} $$
+
+In R, this distribution can be sampled as follow
+(assuming $N=9$ and $p=0.7$):
+
+```{r}
+n_simulation = 1e5
+dummy_data <- rbinom(n_simulation, size=9, prob=0.7)
+simplehist(dummy_data , xlab="Dummy water count" )
+```
+
+Once you condition a model on data, 
+you can simulate to examine the model's empirical expectations.
+You can check how well the model reproduces the data used to educate it.
+
+Moreover, simulations can be used to assess exactly how the model fails 
+to describe the data, as a path toward model comprehension, revision, 
+and improvement. 
+We need to learn how to combine sampling of simulated observations with sampling parameters from the posterior distribution. 
+The observations of the model are uncertain in two ways:
+
+1. observation uncertainty (randomness of the observations)
+2. uncertainty about $p$. 
+
+We would like to *propagate* parameter uncertainty 
+as we evaluate implied predictions.
+For each value of $p$, there is an implied distribution of outcomes
+and these distribution can be weighted by the probability of $p$
+given by the posterior. 
+Thus a **posterior predictive distribution** can be obtained by 
+computed the weighted sum of each possible outcomes.
+If instead you use only one $p$ value, 
+let's say the MAP, 
+you would produce an overconfident distribution of predicitions
+(i.e. narrower).
+
+```{r}
+# Compute posterior with grid approximation.
+p_grid <- seq(0, 1, length.out=1000)
+prior <- rep(1, 1000)
+likelihood <- dbinom(6, size=9, prob=p_grid)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+samples <- sample(p_grid, size=1e5, replace=TRUE, prob=posterior)
+
+w <- rbinom(1e4, size=9, prob=samples)
+simplehist(w, xlab="Posterior predictive distribution")
+```
+
+# Practice 
+
+## Easy 
+
+```{r}
+p_grid <- seq(0, 1 ,length.out=1000 )
+prior <- rep(1, 1000)
+likelihood <- dbinom(6 , size=9, prob=p_grid)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+set.seed(100)
+samples <- sample(p_grid , prob=posterior , size=1e4 , replace=TRUE)
+```
+
+Use the values in `samples` to answer the following questions.
+
+1) How much posterior probability lies below $p=0.2$?
+
+```{r}
+sum(samples < 0.2) / 1e4
+```
+
+2) How much posterior probability lies above $p=0.8$?
+
+```{r}
+sum(samples > 0.8) / 1e4
+```
+
+3) How much posterior probability lies in $0.2 < p < 0.8$?
+
+```{r}
+sum(samples > 0.2 & samples < 0.8) / 1e4
+```
+
+4) 20% of the posterior probability lies below which value of $p$?
+
+```{r}
+quantile(samples, 0.2)
+```
+
+5) 20% of the posterior probability lies above which value of $p$?
+
+```{r}
+quantile(samples, 0.8)
+```
+
+6) Which values of $p$ contain the narrowest interval equal to 66%
+of the posterior probability?
+
+```{r}
+HPDI(samples , prob=0.66)
+```
+
+7) Which values of $p$ contain  66% of the posterior probability, 
+assuming equal posterior probability both below and above the interval?
+
+```{r}
+quantile(samples, c(0.17, 1-0.17))
+```
+
+## Medium 
+
+1) Suppose the globe tossing data had turned out to be 8 water in 15 tosses.
+Construct the posterior distribution, using grid approximation. 
+Use the same flat prior as before.
+
+```{r}
+p_grid <- seq(0, 1 ,length.out=1000)
+prior <- rep(1, 1000)
+likelihood <- dbinom(8, size=15, prob=p_grid)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+samples <- sample(p_grid, prob=posterior, size=1e4, replace=TRUE)
+```
+
+2) Draw 10,000 samples from the grid approximation from above. 
+Then use the samples to calculate the 90% HPDI for $p$.
+
+```{r}
+HPDI(samples , prob=0.9)
+```
+
+3) Construct a posterior predictive check for this model and data. 
+
+```{r}
+w <- rbinom(1e4, size=15, prob=samples)
+sum(w==8) / 1e4
+```
+
+4) Using the posterior distribution constructed from the new (8/15) data, 
+now calculate the probability of observing 6 water in 9 tosses.
+
+```{r}
+w <- rbinom(1e4, size=9, prob=samples)
+sum(w==6) / 1e4
+```
+
+5) Start over at 1) but now use a prior that is zero below $p=0.5$ 
+and is positive above.
+This corresponds to a prior information that a majority of the Earth's surface is water.
+What difference the better prior make? 
+
+```{r}
+p_grid <- seq(0, 1 ,length.out=1000)
+prior <- c(rep(0, 500), rep(1,500))
+likelihood <- dbinom(8, size=15, prob=p_grid)
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+samples <- sample(p_grid, prob=posterior, size=1e4, replace=TRUE)
+```
+
+```{r}
+HPDI(samples, prob=0.9)
+```
+
+```{r}
+w <- rbinom(1e4, size=15, prob=samples)
+sum(w==8) / 1e4
+```
+
+```{r}
+w <- rbinom(1e4, size=9, prob=samples)
+sum(w==6) / 1e4
+```
