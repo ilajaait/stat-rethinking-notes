@@ -1,0 +1,95 @@
+---
+title: "Chapter 4: Geocentric models"
+format: html
+fig-cap-location: margin
+reference-location: margin
+citation-location: margin
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#| output: false
+library(rethinking)
+```
+
+This chapter introduces linear regression as a bayesian procedure.
+
+## Why normal distribution are normal?
+
+### Normal by addition 
+
+Let's simulate an experiment. 
+A coin is flipped and the person takes a random step 
+between 0 and 1 meter in the indicated direction:
+left if the coin is up, right otherwise.
+We repeat the process for 16 steps and 1,000 peoples.
+
+```{r}
+#| fig-height: 3
+par(mfrow=c(1,3))
+for (n_steps in c(4, 16, 50)){
+    position <- replicate(1000, sum(runif(n_steps, -1, 1)))
+    hist(position, main=paste(n_steps, " steps"))
+}
+```
+
+Any process that adds together random values from the same distribution 
+converges to a normal.
+Often the convergence is often fast.
+
+### Normal by multiplication
+
+Here's another way to get a normal distribution.
+Assume that the growth of an organism is influenced by 12 loci,
+each with several alleles that code for more growth.
+As all loci interact together, the growth is increased by a percentage.
+
+```{r}
+growth <- replicate(10000, prod(1+runif(12,0,0.1)))
+dens(growth, norm.comp=TRUE, xlab="Growth")
+```
+
+What's happening is that multiplying small numbers (close to 1), 
+is approximately the same as addition.
+
+$$ 1.1 \times 1.1 = (1+0.1)(1+0.1) = 1 + 0.2 + 0.01 \simeq 1.2 $$
+The smaller the effect of each locus,
+the better the additive approximation is.
+
+```{r}
+#| fig-height: 4
+par(mfrow=c(1,2))
+big <- replicate(10000, prod(1+runif(12,0,0.5)))
+small <- replicate(10000, prod(1+runif(12,0,0.01)))
+dens(big, norm.comp=TRUE, xlab="Growth", main="Big effect")
+dens(small, norm.comp=TRUE, xlab="Growth", main="Small effect")
+```
+
+### Normal by log-multiplication
+
+Large deviates multiplied do not produce Gaussian distributions, 
+but they tend to produce Gaussian distributions on log scale.
+
+```{r}
+big_log <- replicate(10000, log(prod(1+runif(12,0,0.5))))
+dens(big_log, norm.comp=TRUE, xlab="Growth", main="Big effect (log)")
+```
+
+We get a normal distribution again because $\log(ab) = \log(a) + \log(b)$.
+
+### Using Gaussian distribution 
+
+Gaussian distributions are a member of the *exponential family*. 
+All the members of this family are important for working ins science, 
+because they populate our world.
+The Gaussian distribution is the shape that can be realized in the largest 
+number of ways and does not introduce any new assumptions, 
+other than the measure as a finite variance.
+
+:::{.callout-note}
+## Gaussian probability density
+
+$$ p(y|\mu,\sigma) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp(- \frac{(y-\mu)^2}{2\sigma^2}) $$
+Sometimes instead of $\sigma$ the precision $\tau = \sigma^{-2}$ is used.
+:::
